@@ -1,18 +1,3 @@
-/* Read RFID Tag with RC522 RFID Reader
-    SDA    D4
-    SCK    D5
-    MOSI   D7
-    MISO   D6
-    GND    GND
-    RST    D3
-    3v3    3v3
-
-    Note:
-    - Dalam satu garis di esp8266nya
-    - Boardnya: NodeMcu 1.0 (12E Module)
-
-*/
-
 #include <ESP8266WiFi.h>
 #include <FirebaseESP8266.h>
 #include <SPI.h>
@@ -20,6 +5,15 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <time.h>
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+Servo servo;     // Create a servo object
+
+int servoPin = D0;
 
 // Firebase credentials
 #define FIREBASE_HOST "https://projectiot-b2f13-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -36,7 +30,7 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
 
 String tag;
-int id = 1;
+int id=1;
 
 FirebaseData firebaseData;
 
@@ -44,9 +38,13 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 
 int tapCount = 0; // Global variable to track tap count
+boolean ir[3];
 
 void setup() {
   Serial.begin(115200);
+  lcd.begin();
+  lcd.backlight();
+  servo.attach(D0);
 
   // Connect to Wi-Fi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -76,22 +74,52 @@ void setup() {
   timeClient.begin();
   timeClient.setTimeOffset(25200);
   timeClient.forceUpdate();
+  servo.write(0);
 }
 
 void loop() {
-
+  int empty = -1;
   if (!rfid.PICC_IsNewCardPresent())
     return;
   if (rfid.PICC_ReadCardSerial()) {
+    for (int j = 0; j < 3; j++) {
+      String path = "/slot-parkir/ir" + String(j + 1);
+      Firebase.getString(firebaseData, path.c_str());
+      if (firebaseData.stringData() == "kosong") {
+        ir[j] = false;
+      } else {
+        ir[j] = true;
+      }
+      Serial.println(ir[j]);
+    }
+    for (int j = 0; j < 3; j++) {
+      if (ir[j] == false) {
+        empty = j+1;
+        lcd.setCursor(0,0);
+        lcd.print("Silahkan Mengisi");
+        lcd.setCursor(0,1);
+        lcd.print("Slot Nomor: ");
+        lcd.setCursor(12,1);
+        lcd.print(String(empty));
+        servo.write(180);
+        delay(5000);
+        servo.write(0);
+        lcd.clear();
+        break;
+      } 
+    }
+    if (empty < 0) {
+        lcd.print("Parkiran Penuh");
+        delay(5000);
+        lcd.clear();
+        return;
+    }
     tag = "";
     for (byte i = 0; i < rfid.uid.size; i++) {
-      //      tag += String(rfid.uid.uidByte[i] < 0x10 ? "0" : "");
+//      tag += String(rfid.uid.uidByte[i] < 0x10 ? "0" : "");
       tag += String(rfid.uid.uidByte[i], HEX);
     }
     Serial.println("UID: " + tag);
-
-    // Generate random values for the fields
-    int irValue = 1;
 
     // Get the server time
     time_t serverTime = timeClient.getEpochTime();
@@ -100,16 +128,15 @@ void loop() {
 
     // Format the time
     char timeInValue[30];
-    sprintf(timeInValue, "%d-%02d-%02d %02d:%02d:%02d:%03d",
+    sprintf(timeInValue, "%d-%02d-%02d %02d:%02d:%02d.%03d",
             timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
             timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec,
             millis() % 1000);
     String timeOutValue = "";
 
-
     // Create a JSON object
     FirebaseJson json;
-    json.add("ir", irValue);
+    json.add("ir", empty + 1);
     json.add("timein", timeInValue);
     json.add("timeout", timeOutValue);
     json.add("uid", tag);
