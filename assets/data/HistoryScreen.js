@@ -17,9 +17,6 @@ const HistoryScreen = () => {
           fetchedData.push(childData);
         });
   
-        // Sort fetchedData by time of latest data
-        fetchedData.sort((a, b) => b.timein - a.timein);
-  
         setHistoryData(fetchedData);
         console.log(fetchedData);
       });
@@ -40,7 +37,6 @@ const HistoryScreen = () => {
           {/* Table header */}
           <View style={styles.tableRow}>
             <Text style={styles.tableHeader}>UID</Text>
-            <Text style={styles.tableHeader}>IR</Text>
             <Text style={styles.tableHeader}>Time In</Text>
             <Text style={styles.tableHeader}>Time Out</Text>
           </View>
@@ -49,7 +45,6 @@ const HistoryScreen = () => {
           {historyData.map((item, index) => (
             <View key={index} style={styles.tableRow}>
               <Text style={styles.tableCell}>{item.uid}</Text>
-              <Text style={styles.tableCell}>{item.ir}</Text>
               <Text style={styles.tableCell}>{item.timein}</Text>
               <Text style={styles.tableCell}>{item.timeout}</Text>
             </View>

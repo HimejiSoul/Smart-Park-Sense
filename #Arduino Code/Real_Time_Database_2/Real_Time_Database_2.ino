@@ -44,7 +44,6 @@ Servo servo;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 
-int tapCount = 0; // Global variable to track tap count
 
 void setup() {
   Serial.begin(115200);
@@ -91,40 +90,46 @@ void loop() {
     // Extract the UID from the RFID card
     tag = "";
     for (byte i = 0; i < rfid.uid.size; i++) {
-      //      tag += String(rfid.uid.uidByte[i] < 0x10 ? "0" : "");
       tag += String(rfid.uid.uidByte[i], HEX);
     }
     Serial.println("UID: " + tag);
 
-    // Get the server time
-    time_t serverTime = timeClient.getEpochTime();
-    struct tm* timeinfo;
-    timeinfo = localtime(&serverTime);
-
-    // Format the time
-    char timeOutValue[30];
-    sprintf(timeOutValue, "%d-%02d-%02d %02d:%02d:%02d:%03d",
-            timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-            timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec,
-            millis() % 1000);
-
-    String timeInPath = timeOutValue;
-    timeInPath.replace(" ", "_");
-
-    // Update the "timeout" field in Firebase
-    String path = "/history/" + tag + "/timeout";
-    if (Firebase.setString(firebaseData, path.c_str(), timeOutValue)) {
-      Serial.println("Timeout updated in Firebase");
-      Serial.println("Path: " + firebaseData.dataPath());
-      Serial.println("Type: " + firebaseData.dataType());
+    String path = "/history/" + tag + "/timein";
+    Firebase.getString(firebaseData, path.c_str());
+    if (firebaseData.stringData() == "") {
+      Serial.println("UID belum terdaftar pada smart parking");
+      return;
     } else {
-      Serial.println("Failed to update timeout in Firebase");
-      Serial.println("Reason: " + firebaseData.errorReason());
-    }
-    servo.write(180);
-    delay(5000);
-    servo.write(0);
 
+      // Get the server time
+      time_t serverTime = timeClient.getEpochTime();
+      struct tm* timeinfo;
+      timeinfo = localtime(&serverTime);
+
+      // Format the time
+      char timeOutValue[30];
+      sprintf(timeOutValue, "%d-%02d-%02d %02d:%02d:%02d:%03d",
+              timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+              timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec,
+              millis() % 1000);
+
+      String timeInPath = timeOutValue;
+      timeInPath.replace(" ", "_");
+
+      // Update the "timeout" field in Firebase
+      String path = "/history/" + tag + "/timeout";
+      if (Firebase.setString(firebaseData, path.c_str(), timeOutValue)) {
+        Serial.println("Timeout updated in Firebase");
+        Serial.println("Path: " + firebaseData.dataPath());
+        Serial.println("Type: " + firebaseData.dataType());
+      } else {
+        Serial.println("Failed to update timeout in Firebase");
+        Serial.println("Reason: " + firebaseData.errorReason());
+      }
+      servo.write(180);
+      delay(5000);
+      servo.write(0);
+    }
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
   }
